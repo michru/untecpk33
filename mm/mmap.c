@@ -1722,7 +1722,8 @@ check_current:
 		/* Check if current node has a suitable gap */
 		if (gap_start > high_limit)
 			return -ENOMEM;
-		if (gap_end >= low_limit && gap_end - gap_start >= length)
+		if (gap_end >= low_limit &&
+		    gap_end > gap_start && gap_end - gap_start >= length)
 			goto found;
 
 		/* Visit right subtree if it looks promising */
@@ -1825,7 +1826,8 @@ check_current:
 		gap_end = vm_start_gap(vma);
 		if (gap_end < low_limit)
 			return -ENOMEM;
-		if (gap_start <= high_limit && gap_end - gap_start >= length)
+		if (gap_start <= high_limit &&
+		    gap_end > gap_start && gap_end - gap_start >= length)
 			goto found;
 
 		/* Visit left subtree if it looks promising */
@@ -2091,21 +2093,18 @@ find_vma_prev(struct mm_struct *mm, unsigned long addr,
  * grow-up and grow-down cases.
  */
 static int acct_stack_growth(struct vm_area_struct *vma,
-			    unsigned long size, unsigned long grow)
+			     unsigned long size, unsigned long grow)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct rlimit *rlim = current->signal->rlim;
-	unsigned long new_start, actual_size;
+	unsigned long new_start;
 
 	/* address space limit tests */
 	if (!may_expand_vm(mm, grow))
 		return -ENOMEM;
 
 	/* Stack limit test */
-	actual_size = size;
-	if (size && (vma->vm_flags & (VM_GROWSUP | VM_GROWSDOWN)))
-		actual_size -= PAGE_SIZE;
-	if (actual_size > ACCESS_ONCE(rlim[RLIMIT_STACK].rlim_cur))
+	if (size > ACCESS_ONCE(rlim[RLIMIT_STACK].rlim_cur))
 		return -ENOMEM;
 
 	/* mlock limit tests */
@@ -2153,16 +2152,19 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 	if (!(vma->vm_flags & VM_GROWSUP))
 		return -EFAULT;
 
-	/* Guard against wrapping around to address 0. */
+	/* Guard against exceeding limits of the address space. */
 	address &= PAGE_MASK;
-	address += PAGE_SIZE;
-	if (!address)
+	if (address >= TASK_SIZE)
 		return -ENOMEM;
+	address += PAGE_SIZE;
 
 	/* Enforce stack_guard_gap */
 	gap_addr = address + stack_guard_gap;
-	if (gap_addr < address)
-		return -ENOMEM;
+
+	/* Guard against overflow */
+	if (gap_addr < address || gap_addr > TASK_SIZE)
+		gap_addr = TASK_SIZE;
+
 	next = vma->vm_next;
 	if (next && next->vm_start < gap_addr) {
 		if (!(next->vm_flags & VM_GROWSUP))
