@@ -47,8 +47,8 @@ module_param(enable_wlan_scan_wake_wl, bool, 0644);
 static bool enable_wlan_pm_wake_wl = true;
 module_param(enable_wlan_pm_wake_wl, bool, 0644);
 
-static bool enable_wlan_txfl_wl_ws = true;
-module_param(enable_wlan_txfl_wl_ws, bool, 0644);
+static bool enable_wlan_txfl_wake_wl = true;
+module_param(enable_wlan_txfl_wake_wl, bool, 0644);
 
 static bool enable_netlink_ws = true;
 module_param(enable_netlink_ws, bool, 0644);
@@ -622,7 +622,7 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 				wakeup_source_deactivate(ws);
 			return; }
 
-	if (!enable_wlan_txfl_wl_ws && !strcmp(ws->name, "wlan_txfl_wl"))
+	if (!enable_wlan_txfl_wake_wl && !strcmp(ws->name, "wlan_txfl_wake"))
         	{	if (ws->active)
 				wakeup_source_deactivate(ws);
 			return; }
